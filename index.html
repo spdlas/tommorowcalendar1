@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Напоминание на завтра</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<script>
+	// Вычисляем завтрашнюю дату в формате YYYYMMDD
+	const tomorrow = new Date();
+	tomorrow.setDate(tomorrow.getDate() + 1);
+	const YYYY = tomorrow.getFullYear();
+	const MM = String(tomorrow.getMonth() + 1).padStart(2, '0');
+	const DD = String(tomorrow.getDate()).padStart(2, '0');
+	const dateStr = `${YYYY}${MM}${DD}`;
+
+	// Параметры события
+	const title = encodeURIComponent("Напоминание ACCENT");
+	const details = encodeURIComponent("Чето там проверить завтра этот текст надо редачить");
+
+	// Определяем платформу
+	const ua = navigator.userAgent.toLowerCase();
+	const isIOS = /iphone|ipad|ipod/.test(ua);
+	const isAndroid = /android/.test(ua);
+
+	let url;
+
+	if (isIOS) {
+		// Apple Calendar — webcal + ICS на лету
+		const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:reminder-tomorrow@grok\nDTSTART;VALUE=DATE:${dateStr}\nDTEND;VALUE=DATE:${YYYY}${MM}${String(Number(DD)+1).padStart(2,'0')}\nSUMMARY:${title}\nDESCRIPTION:${details}\nBEGIN:VALARM\nTRIGGER:-PT15M\nACTION:DISPLAY\nDESCRIPTION:Напоминание!\nEND:VALARM\nEND:VEVENT\nEND:VCALENDAR`;
+		url = 'data:text/calendar;charset=utf8,' + encodeURIComponent(ics);
+	}
+	else if (isAndroid) {
+		// Android лучше всего открывает Google Calendar
+		const dates = `${dateStr}T090000/${dateStr}T100000`;
+		url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&sprop=&sprop=name:`;
+	}
+	else {
+		// Все остальные — тоже Google Calendar (работает везде)
+		const dates = `${dateStr}T090000/${dateStr}T100000`;
+		url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&sprop=&sprop=name:`;
+	}
+
+	// Редирект
+	location.href = url;
+</script>
+
+<p style="text-align:center; padding:2em; font-family:sans-serif;">
+	Создаём напоминание на завтра…
+</p>
+</body>
+</html>
