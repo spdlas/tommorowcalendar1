@@ -1,53 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<meta charset="utf-8">
-	<title>Напоминание на завтра</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <title>Напоминание на завтра</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-<script>
-	// Вычисляем завтрашнюю дату в формате YYYYMMDD
-	const tomorrow = new Date();
-	tomorrow.setDate(tomorrow.getDate() + 1);
-	const YYYY = tomorrow.getFullYear();
-	const MM = String(tomorrow.getMonth() + 1).padStart(2, '0');
-	const DD = String(tomorrow.getDate()).padStart(2, '0');
-	const dateStr = `${YYYY}${MM}${DD}`;
+  <script>
+    // Вычисляем завтрашнюю дату
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const YYYY = tomorrow.getFullYear();
+    const MM = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const DD = String(tomorrow.getDate()).padStart(2, '0');
+    const dateStr = `${YYYY}${MM}${DD}`;
+    const nextDay = new Date(tomorrow);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextYYYY = nextDay.getFullYear();
+    const nextMM = String(nextDay.getMonth() + 1).padStart(2, '0');
+    const nextDD = String(nextDay.getDate()).padStart(2, '0');
+    const endDateStr = `${nextYYYY}${nextMM}${nextDD}`;
 
-	// Параметры события
-	const title = encodeURIComponent("Напоминание ACCENT");
-	const details = encodeURIComponent("Чето там проверить завтра этот текст надо редачить");
+    // Параметры события
+    const title = encodeURIComponent("Напоминание ⚡");
+    const details = encodeURIComponent("Это событие автоматически создано на завтра при сканировании QR-кода");
 
-	// Определяем платформу
-	const ua = navigator.userAgent.toLowerCase();
-	const isIOS = /iphone|ipad|ipod/.test(ua);
-	const isAndroid = /android/.test(ua);
+    // Определяем платформу
+    const ua = navigator.userAgent.toLowerCase();
+    const isIOS = /iphone|ipad|ipod/.test(ua);
+    const isAndroid = /android/.test(ua);
 
-	let url;
+    let url;
 
-	if (isIOS) {
-		// Apple Calendar — webcal + ICS на лету
-		const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:reminder-tomorrow@grok\nDTSTART;VALUE=DATE:${dateStr}\nDTEND;VALUE=DATE:${YYYY}${MM}${String(Number(DD)+1).padStart(2,'0')}\nSUMMARY:${title}\nDESCRIPTION:${details}\nBEGIN:VALARM\nTRIGGER:-PT15M\nACTION:DISPLAY\nDESCRIPTION:Напоминание!\nEND:VALARM\nEND:VEVENT\nEND:VCALENDAR`;
-		url = 'data:text/calendar;charset=utf8,' + encodeURIComponent(ics);
-	}
-	else if (isAndroid) {
-		// Android лучше всего открывает Google Calendar
-		const dates = `${dateStr}T090000/${dateStr}T100000`;
-		url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&sprop=&sprop=name:`;
-	}
-	else {
-		// Все остальные — тоже Google Calendar (работает везде)
-		const dates = `${dateStr}T090000/${dateStr}T100000`;
-		url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&sprop=&sprop=name:`;
-	}
+    if (isIOS) {
+      // Apple Calendar — data:ICS (остаётся как есть, работает)
+      const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:reminder-tomorrow@grok\nDTSTART;VALUE=DATE:${dateStr}\nDTEND;VALUE=DATE:${endDateStr}\nSUMMARY:${title}\nDESCRIPTION:${details}\nBEGIN:VALARM\nTRIGGER:-PT15M\nACTION:DISPLAY\nDESCRIPTION:Напоминание!\nEND:VALARM\nEND:VEVENT\nEND:VCALENDAR`;
+      url = 'data:text/calendar;charset=utf8,' + encodeURIComponent(ics);
+    } 
+    else if (isAndroid) {
+      // Android: Intent для нативного Calendar (работает для Google/Samsung/AOSP)
+      // Формируем intent:// с extras для создания события
+      const startMillis = tomorrow.getTime();
+      const endMillis = nextDay.getTime();
+      const intentUrl = `intent://create-event/#Intent;scheme=content;package=com.android.calendar;S.startTimeMillis=${startMillis};S.endTimeMillis=${endMillis};S.title=${title};S.description=${details};S.allday=true;S.reminderMinutes=15;end`;
 
-	// Редирект
-	location.href = url;
-</script>
+      // Проверяем, поддерживается ли (fallback на Google web, если нет)
+      url = intentUrl;
+      
+      // Альтернатива: для Google Calendar app напрямую (если установлен)
+      // const gcalDates = `${dateStr}T000000/${endDateStr}T000000`;
+      // url = `intent://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gcalDates}&details=${details}#Intent;scheme=https;package=com.google.android.calendar;end`;
+    } 
+    else {
+      // Десктоп: Google web
+      const dates = `${dateStr}T000000/${endDateStr}T000000`;
+      url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&sprop=&sprop=name:`;
+    }
 
-<p style="text-align:center; padding:2em; font-family:sans-serif;">
-	Создаём напоминание на завтра…
-</p>
+    // Редирект с проверкой (для Android, если intent не сработает, fallback)
+    if (isAndroid) {
+      window.location.href = url;
+      // Fallback через 2 сек, если не открылось
+      setTimeout(() => {
+        if (document.hasFocus()) { // Если всё ещё в браузере
+          const fallbackDates = `${dateStr}T000000/${endDateStr}T000000`;
+          window.location.href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fallbackDates}&details=${details}`;
+        }
+      }, 2000);
+    } else {
+      window.location.href = url;
+    }
+  </script>
+
+  <p style="text-align:center; padding:2em; font-family:sans-serif;">
+    Создаём напоминание на завтра в календаре…
+    <br><small>Если не открылось — проверь разрешения или fallback в браузере.</small>
+  </p>
 </body>
 </html>
